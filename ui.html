@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recepción de facturas</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #667085; --border: #e3e6eb;
+    --accent: #2f6fed; --accent-soft: #e8efff;
+    --ok: #12804f; --ok-soft: #e4f5ec; --warn: #b25e00; --warn-soft: #fff2df;
+    --bad: #c4302b; --bad-soft: #fdeceb; --code: #f1f3f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11141a; --panel: #1a1f28; --text: #e6e9ef; --muted: #98a2b3; --border: #2b3240;
+      --accent: #6c9bff; --accent-soft: #1d2a45;
+      --ok: #4cc38a; --ok-soft: #15301f; --warn: #f0a44b; --warn-soft: #34260f;
+      --bad: #ff7a73; --bad-soft: #3a1b1a; --code: #141820;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; }
+  h1 { font-size: 22px; margin: 0; }
+  .cfg { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .cfg b { color: var(--text); font-weight: 600; }
+  .tabs { display: flex; gap: 4px; margin: 20px 0 16px; border-bottom: 1px solid var(--border); }
+  .tabs button { background: none; border: 0; padding: 8px 14px; font: inherit; color: var(--muted);
+                 cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tabs button.on { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .drop { border: 2px dashed var(--border); border-radius: 12px; padding: 32px 16px; text-align: center;
+          cursor: pointer; transition: .15s; color: var(--muted); }
+  .drop.over, .drop:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+  .drop strong { color: var(--text); }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; margin-top: 14px; }
+  .controls label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+  .btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 9px 18px;
+         font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn.sec { background: var(--accent-soft); color: var(--accent); }
+  .modo { padding: 8px 12px; border-radius: 8px; font-size: 13px; margin-top: 12px; }
+  .modo.prueba { background: var(--accent-soft); }
+  .modo.real { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+  .lista { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .card { margin-top: 16px; }
+  .card-h { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+  .card-h h3 { margin: 0; font-size: 16px; word-break: break-all; }
+  .badge { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; letter-spacing: .02em; }
+  .b-ok { background: var(--ok-soft); color: var(--ok); }
+  .b-warn { background: var(--warn-soft); color: var(--warn); }
+  .b-bad { background: var(--bad-soft); color: var(--bad); }
+  .b-run { background: var(--accent-soft); color: var(--accent); }
+  .b-skip { background: var(--code); color: var(--muted); }
+  .pasos { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 12px 0 4px; font-size: 13px; color: var(--muted); }
+  .pasos span::before { content: "○ "; }
+  .pasos span.hecho { color: var(--ok); } .pasos span.hecho::before { content: "● "; }
+  .pasos span.activo { color: var(--accent); font-weight: 600; } .pasos span.activo::before { content: "◌ "; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td, th { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  td:first-child { color: var(--muted); width: 42%; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .nulo { color: var(--bad); font-style: italic; }
+  .msg { padding: 9px 12px; border-radius: 8px; margin-bottom: 8px; font-size: 14px; }
+  .msg code { font-size: 12px; font-weight: 700; display: block; opacity: .8; }
+  .m-ok { background: var(--ok-soft); color: var(--ok); }
+  .m-bad { background: var(--bad-soft); color: var(--bad); }
+  .m-info { background: var(--accent-soft); }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--accent); font-size: 14px; }
+  pre { background: var(--code); border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+        overflow-x: auto; font-size: 12.5px; white-space: pre-wrap; word-break: break-word; margin: 8px 0 0; }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor;
+          border-right-color: transparent; border-radius: 50%; animation: g .8s linear infinite; vertical-align: -1px; }
+  @keyframes g { to { transform: rotate(360deg); } }
+  .tabla-wrap { overflow-x: auto; }
+  .vacio { color: var(--muted); font-size: 14px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🧾 Recepción automatizada de facturas</h1>
+    <div class="cfg" id="cfg">Cargando configuración…</div>
+  </header>
+
+  <nav class="tabs">
+    <button class="on" data-tab="procesar">Procesar</button>
+    <button data-tab="historial">Historial</button>
+  </nav>
+
+  <section id="t-procesar">
+    <div class="panel">
+      <div class="drop" id="drop">
+        <strong>Arrastre aquí las facturas PDF</strong><br>o haga clic para elegirlas
+        <input type="file" id="archivo" accept="application/pdf,.pdf" multiple hidden>
+      </div>
+      <div class="lista" id="lista"></div>
+      <div class="controls">
+        <label><input type="checkbox" id="prueba" checked> Modo prueba (no registra ni envía correos)</label>
+        <label><input type="checkbox" id="forzar"> Reprocesar facturas ya procesadas</label>
+        <button class="btn" id="procesar" disabled>Procesar</button>
+      </div>
+      <div class="modo prueba" id="modo">Modo prueba: se extraen y validan los datos, pero no se registra nada en el ERP ni se envían correos.</div>
+    </div>
+    <div id="resultados"></div>
+  </section>
+
+  <section id="t-historial" hidden>
+    <div class="panel">
+      <h4>Procesadas por este programa (historial.json)</h4>
+      <div class="tabla-wrap" id="hist"></div>
+    </div>
+    <div class="panel card">
+      <div class="card-h"><h4 style="margin:0">Facturas registradas en el ERP con su token</h4>
+        <button class="btn sec" id="erp-btn">Consultar ERP</button></div>
+      <div class="tabla-wrap" id="erp" style="margin-top:10px"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let archivos = [];
+
+fetch("/api/config").then(r => r.json()).then(c => {
+  $("#cfg").innerHTML = `<span>ERP <b>${esc(c.erp)}</b></span><span>IA <b>${esc(c.ia)}</b></span>` +
+    `<span>Avisos a <b>${esc(c.destino)}</b></span><span>SMTP <b>${esc(c.smtp)}</b></span>`;
+});
+
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+  $("#t-procesar").hidden = b.dataset.tab !== "procesar";
+  $("#t-historial").hidden = b.dataset.tab !== "historial";
+  if (b.dataset.tab === "historial") cargarHistorial();
+});
+
+const drop = $("#drop"), input = $("#archivo");
+drop.onclick = () => input.click();
+input.onchange = () => elegir(input.files);
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); elegir(e.dataTransfer.files); };
+
+function elegir(lista) {
+  archivos = [...lista].filter(f => f.name.toLowerCase().endsWith(".pdf"));
+  $("#lista").textContent = archivos.length ? `${archivos.length} archivo(s): ${archivos.map(f => f.name).join(", ")}` : "Ningún PDF seleccionado.";
+  $("#procesar").disabled = !archivos.length;
+}
+
+$("#prueba").onchange = () => {
+  const p = $("#prueba").checked, m = $("#modo");
+  m.className = "modo " + (p ? "prueba" : "real");
+  m.textContent = p ? "Modo prueba: se extraen y validan los datos, pero no se registra nada en el ERP ni se envían correos."
+                    : "⚠ Modo REAL: las facturas válidas se registran en el ERP y las rechazadas generan un correo de aviso.";
+};
+
+const PASOS = ["Leer con IA", "Validar", "Registrar / avisar"];
+
+$("#procesar").onclick = async () => {
+  const btn = $("#procesar");
+  btn.disabled = true;
+  const modoPrueba = $("#prueba").checked, forzar = $("#forzar").checked;
+  for (const f of archivos) {
+    const card = document.createElement("div");
+    card.className = "panel card";
+    card.innerHTML = `<div class="card-h"><h3>${esc(f.name)}</h3><span class="badge b-run"><span class="spin"></span> Procesando</span></div>
+      <div class="pasos">${PASOS.map((p, i) => `<span class="${i ? "" : "activo"}">${p}</span>`).join("")}</div>`;
+    $("#resultados").prepend(card);
+    // Avance visual aproximado mientras el servidor trabaja (la IA es el paso más largo)
+    const spans = card.querySelectorAll(".pasos span");
+    const t = setTimeout(() => { spans[0].className = "hecho"; spans[1].className = "activo"; }, 6000);
+    let r;
+    try {
+      const resp = await fetch("/api/procesar", { method: "POST", body: f,
+        headers: { "X-Archivo": encodeURIComponent(f.name), "X-Modo-Prueba": modoPrueba ? "1" : "0", "X-Forzar": forzar ? "1" : "0" } });
+      r = await resp.json();
+    } catch (e) {
+      r = { archivo: f.name, estado: "ERROR", error_sistema: "No se pudo contactar al servidor: " + e };
+    }
+    clearTimeout(t);
+    pintar(card, r);
+  }
+  btn.disabled = false;
+};
+
+function claseEstado(e) {
+  if (e.startsWith("REGISTRADA") || e.startsWith("VÁLIDA")) return "b-ok";
+  if (e.startsWith("RECHAZARÍA")) return "b-warn";
+  if (e.startsWith("OMITIDA")) return "b-skip";
+  return "b-bad";
+}
+
+const ETIQUETAS = { ruc_emisor: "RUC emisor", numero_factura: "Número de factura", fecha_emision: "Fecha de emisión",
+  orden_compra: "Orden de compra", subtotal: "Subtotal", iva: "IVA", total: "Total" };
+
+function pintar(card, r) {
+  const pasos = PASOS.map(p => `<span class="hecho">${p}</span>`).join("");
+  let html = `<div class="card-h"><h3>${esc(r.archivo)}</h3><span class="badge ${claseEstado(r.estado)}">${esc(r.estado)}</span></div>
+    <div class="pasos">${pasos}</div>`;
+
+  if (r.estado.startsWith("OMITIDA")) {
+    html += `<div class="msg m-info">Esta factura ya fue procesada antes. Marque «Reprocesar» para repetirla.</div>`;
+  } else {
+    let datos = `<p class="vacio">No se pudieron extraer datos.</p>`;
+    if (r.factura) {
+      datos = "<table>" + Object.entries(ETIQUETAS).map(([k, n]) => {
+        const v = r.factura[k];
+        const val = v === null || v === undefined ? `<span class="nulo">no encontrado</span>`
+                  : (typeof v === "number" ? v.toFixed(2) : esc(v));
+        return `<tr><td>${n}</td><td class="num">${val}</td></tr>`;
+      }).join("") + "</table>";
+    }
+    let res = "";
+    if (r.registrada) res += `<div class="msg m-ok">✔ Factura registrada en el ERP.</div>`;
+    else if (!(r.problemas || []).length && !r.error_sistema)
+      res += `<div class="msg m-ok">✔ Pasó todas las validaciones${r.modo_prueba ? " (modo prueba: no se registró)" : ""}.</div>`;
+    for (const p of r.problemas || []) res += `<div class="msg m-bad"><code>${esc(p.codigo)}</code>${esc(p.mensaje)}</div>`;
+    if (r.error_sistema) res += `<div class="msg m-bad"><code>ERROR TÉCNICO</code>${esc(r.error_sistema)}</div>`;
+    if (r.aviso_enviado) res += `<div class="msg m-info">✉ Aviso enviado por correo.</div>`;
+    else if (r.aviso && r.modo_prueba) res += `<div class="msg m-info">✉ En modo real se enviaría el aviso de abajo.</div>`;
+
+    html += `<div class="grid"><div><h4>Datos extraídos por la IA</h4>${datos}</div><div><h4>Resultado</h4>${res}</div></div>`;
+    if (r.aviso) html += `<details><summary>Ver correo de aviso</summary>
+      <pre><b>Para:</b> ${esc(r.aviso.para)}\n<b>Asunto:</b> ${esc(r.aviso.asunto)}\n\n${esc(r.aviso.cuerpo)}</pre></details>`;
+  }
+  html += `<details><summary>Registro técnico</summary><pre>${esc((r.log || []).join("\n") || "(sin mensajes)")}</pre></details>`;
+  card.innerHTML = html;
+}
+
+function tabla(filas, cols) {
+  if (!filas.length) return `<p class="vacio">Sin registros.</p>`;
+  cols = cols || Object.keys(filas[0]);
+  return `<table><tr>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr>` +
+    filas.map(f => `<tr>${cols.map(c => `<td>${esc(Array.isArray(f[c]) ? f[c].join(", ") : f[c])}</td>`).join("")}</tr>`).join("") + "</table>";
+}
+
+function cargarHistorial() {
+  fetch("/api/historial").then(r => r.json()).then(d => {
+    $("#hist").innerHTML = d.length ? tabla(d.reverse()) : `<p class="vacio">Todavía no hay facturas procesadas en modo real.</p>`;
+  });
+}
+
+$("#erp-btn").onclick = () => {
+  $("#erp").innerHTML = `<p class="vacio"><span class="spin"></span> Consultando…</p>`;
+  fetch("/api/erp-facturas").then(r => r.json()).then(d => {
+    $("#erp").innerHTML = d.error ? `<div class="msg m-bad">${esc(d.error)}</div>` : tabla(d);
+  });
+};
+</script>
+</body>
+</html>
